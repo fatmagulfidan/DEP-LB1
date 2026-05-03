@@ -1,0 +1,27 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+npm-debug.log
+npm-error.log
+yarn-error.log
+
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Docker artifacts
+.dockerignore
+.docker/
+
+# Project specific
+/postgres/data/

@@ -1,0 +1,26 @@
+# Docker Compose Override for Development
+# This file is automatically loaded when present and allows overriding production settings
+# Usage: docker compose up (automatically uses both docker-compose.yml and docker-compose.override.yml)
+
+version: '3.9'
+
+services:
+  backend:
+    # Volume mount for live code changes
+    volumes:
+      - ./backend/app.js:/app/app.js
+      - ./backend/node_modules:/app/node_modules
+    environment:
+      NODE_ENV: development
+    # Override with development restart policy
+    restart: unless-stopped
+
+  # Remove depends_on condition for faster startup in development
+  frontend:
+    restart: unless-stopped
+
+  db:
+    # Expose database port for local connections
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
