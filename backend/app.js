@@ -11,13 +11,19 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// PostgreSQL Connection
+// PostgreSQL Connection with retry logic
+let dbConnected = false;
+
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   host: process.env.DB_HOST || 'db',
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'weather_db',
+  // Connection retry settings
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 // Structured JSON Logger
@@ -31,9 +37,49 @@ function logEvent(level, message, data = {}) {
   console.log(JSON.stringify(log));
 }
 
+// Retry logic for database operations
+async function retryWithExponentialBackoff(fn, maxRetries = 5, initialDelayMs = 1000) {
+  let lastError;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const delayMs = initialDelayMs * Math.pow(2, attempt);
+      logEvent('WARN', `Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delayMs}ms`, {
+        error: error.message,
+        attempt: attempt + 1,
+      });
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  throw lastError;
+}
+
+// Test database connectivity
+async function testDatabaseConnection() {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    dbConnected = true;
+    logEvent('INFO', 'Database connection successful', { 
+      timestamp: result.rows[0].now,
+    });
+  } catch (error) {
+    dbConnected = false;
+    logEvent('ERROR', 'Database connection failed', { error: error.message });
+    throw error;
+  }
+}
+
 // Initialize Database
 async function initializeDatabase() {
   try {
+    // Test connection with retries
+    await retryWithExponentialBackoff(testDatabaseConnection, 5, 2000);
+    
+    // Create table if it doesn't exist
     await pool.query(`
       CREATE TABLE IF NOT EXISTS search_history (
         id SERIAL PRIMARY KEY,
@@ -41,16 +87,37 @@ async function initializeDatabase() {
         searched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    
     logEvent('INFO', 'Database initialized successfully');
   } catch (error) {
-    logEvent('ERROR', 'Database initialization failed', { error: error.message });
+    logEvent('ERROR', 'Database initialization failed', { 
+      error: error.message,
+      attempts_exhausted: true,
+    });
     process.exit(1);
   }
 }
 
 // Health Check Endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'healthy' });
+app.get('/api/health', async (req, res) => {
+  try {
+    // Check database connectivity
+    await pool.query('SELECT NOW()');
+    dbConnected = true;
+    res.json({ 
+      status: 'healthy',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    dbConnected = false;
+    logEvent('WARN', 'Health check: Database unavailable', { error: error.message });
+    res.status(503).json({ 
+      status: 'unhealthy',
+      database: 'disconnected',
+      error: error.message,
+    });
+  }
 });
 
 // Weather Endpoint

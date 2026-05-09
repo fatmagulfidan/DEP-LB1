@@ -1,365 +1,269 @@
-# Weather Dashboard - Multi-Service Docker Application
+# Weather Dashboard – Multi-Service Docker Compose Application
 
-A complete weather dashboard application demonstrating a multi-service Docker Compose setup with a Node.js/Express backend, Nginx frontend, and PostgreSQL database.
+## Overview
 
-## 🏗️ Architecture
+This project demonstrates a multi-service application using Docker Compose. The application allows users to search for real-time weather data and stores search history persistently.
+
+The system is composed of three services that interact with each other:
+
+* Frontend (Nginx)
+* Backend API (Node.js)
+* Database (PostgreSQL)
+
+The backend integrates with the OpenWeatherMap API to fetch live weather data.
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   Docker Network                         │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌──────────────────┐  ┌──────────────────┐             │
-│  │   Frontend       │  │   Backend API    │             │
-│  │  (Nginx Port 80) │  │  (Express:3000)  │             │
-│  └────────┬─────────┘  └────────┬─────────┘             │
-│           │                    │                        │
-│           │                    │                        │
-│           └────────┬───────────┘                        │
-│                    │                                    │
-│           ┌────────▼────────┐                          │
-│           │  PostgreSQL     │                          │
-│           │  (Port 5432)    │                          │
-│           │  Named Volume   │                          │
-│           └─────────────────┘                          │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+Browser → Nginx (Frontend)
+           ↓
+        Backend API (Node.js)
+           ↓
+     PostgreSQL Database
+           ↓
+   External Weather API
 ```
 
-## 📋 Features
+### Description
 
-- **Frontend**: Responsive HTML/CSS/JavaScript dashboard
-  - Search for weather by city name
-  - Display current weather conditions
-  - View search history
-  - Mobile-friendly design
+* The frontend serves static content and proxies API requests to the backend.
+* The backend handles business logic and external API communication.
+* The database stores user search history persistently.
+* All services communicate over a custom Docker network.
 
-- **Backend**: Node.js/Express API
-  - Multi-stage Docker build for optimized image
-  - Structured JSON logging with timestamps
-  - OpenWeatherMap API integration
-  - Search history stored in PostgreSQL
-  - Health check endpoint
-  - Non-root user for security
+---
 
-- **Database**: PostgreSQL
-  - Persistent data storage with named volume
-  - Automatic initialization script
-  - Indexed queries for performance
+## Technologies & Decisions
 
-- **Docker Compose**: Production-like setup
-  - Custom bridge network for service communication
-  - Health checks with dependencies (`depends_on`)
-  - Restart policies for high availability
-  - Environment variable configuration
-  - Multi-stage builds for backend
+### Node.js (Backend)
 
-## 🚀 Quick Start
+Chosen for its simplicity and strong ecosystem for building REST APIs.
 
-### Prerequisites
+### PostgreSQL (Database)
 
-- Docker (version 20.10+)
-- Docker Compose (version 1.29+)
-- OpenWeatherMap API key (free tier available)
+Used for reliable relational data storage and persistence.
 
-### Step 1: Clone/Navigate to Project
+### Nginx (Frontend)
 
-```bash
-cd /path/to/DEP-LB1
+Used to serve static files and act as a reverse proxy for API requests.
+
+### Docker & Docker Compose
+
+Used to orchestrate multiple services, manage dependencies, and ensure reproducibility.
+
+### Multi-Stage Docker Builds
+
+Used in the backend to reduce image size and separate build and production environments.
+
+---
+
+## Features
+
+* Multi-service architecture with 3 containers
+* Real-time weather data via external API
+* Persistent database storage using Docker volumes
+* Reverse proxy via Nginx
+* Structured logging (JSON format)
+* Health checks for service monitoring
+* Automatic service recovery with restart policies
+
+---
+
+## Technical Implementation Details
+
+### 1. Multi-Service Setup
+
+The application uses three services:
+
+* frontend
+* backend
+* database
+
+Each service runs in its own container and communicates via a custom network.
+
+---
+
+### 2. Environment Configuration
+
+Environment variables are used for configuration.
+
+* `.env` contains actual values (ignored by Git)
+* `.env.example` provides a template
+
+Example:
+
+```
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=weather_db
+OPENWEATHER_API_KEY=
 ```
 
-### Step 2: Create Environment File
+---
 
-Copy the example environment file and configure it:
+### 3. Persistent Storage
 
-```bash
+A named volume is used:
+
+```
+postgres_data:/var/lib/postgresql/data
+```
+
+This ensures data is not lost when containers restart.
+
+---
+
+### 4. Health Checks & Dependencies
+
+The backend service includes a health check:
+
+```
+/api/health
+```
+
+The frontend waits until the backend is healthy:
+
+```
+depends_on:
+  condition: service_healthy
+```
+
+---
+
+### 5. Custom Network
+
+A custom Docker network is used:
+
+```
+weather_network
+```
+
+This allows services to communicate via service names:
+
+* backend → http://backend:3000
+* database → db
+
+---
+
+### 6. Logging
+
+All services output logs to stdout.
+
+Logs include:
+
+* timestamp
+* log level
+* message
+
+Nginx is configured to output structured JSON logs.
+
+---
+
+### 7. Resilience & Recovery
+
+The system is designed to recover automatically:
+
+* If the backend fails, Nginx retries requests
+* Restart policies ensure services restart automatically
+* Once a service becomes available again, normal operation resumes
+
+---
+
+## Setup Instructions
+
+### 1. Clone the repository
+
+```
+git clone <your-repo-url>
+cd DEP-LB1
+```
+
+---
+
+### 2. Create .env file
+
+```
 cp .env.example .env
 ```
 
-Edit `.env` and add your OpenWeatherMap API key:
+Add your OpenWeather API key:
 
-```bash
-# Open with your editor
-vim .env  # or nano, code, etc.
+```
+OPENWEATHER_API_KEY=your_key_here
 ```
 
-Fill in the required values:
-```env
-NODE_ENV=production
-BACKEND_PORT=3000
-FRONTEND_PORT=8080
-DB_USER=postgres
-DB_PASSWORD=your_secure_password_here
-DB_NAME=weather_db
-OPENWEATHER_API_KEY=your_api_key_here
+---
+
+### 3. Run the application
+
 ```
-
-**To get an OpenWeatherMap API key:**
-1. Visit https://openweathermap.org/api
-2. Sign up for a free account
-3. Create an API key (Current Weather Data API)
-4. Copy the key to your `.env` file
-
-### Step 3: Build and Start Services
-
-```bash
 docker compose up --build
 ```
 
-This command will:
-- Build the backend and frontend images
-- Create the custom Docker network
-- Start all three services (database, backend, frontend)
-- Wait for health checks to pass
-- Establish service dependencies
+---
 
-### Step 4: Access the Application
-
-- **Frontend**: http://localhost:8080
-- **Backend API**: http://localhost:3000/api
-  - Health: http://localhost:3000/api/health
-  - Weather: http://localhost:3000/api/weather?city=London
-  - History: http://localhost:3000/api/history
-
-## 📚 Project Structure
+### 4. Access the application
 
 ```
-DEP-LB1/
-├── docker-compose.yml          # Docker Compose orchestration
-├── .env.example                # Environment variables template
-├── .env                        # Environment file (create from example)
-│
-├── backend/
-│   ├── Dockerfile              # Multi-stage backend build
-│   ├── package.json            # Node.js dependencies
-│   └── app.js                  # Express application
-│
-├── frontend/
-│   ├── Dockerfile              # Nginx container
-│   ├── index.html              # Web interface
-│   └── nginx.conf              # Nginx configuration with API proxy
-│
-└── postgres/
-    └── init.sql                # Database initialization script
+http://localhost:8081
 ```
 
-## 🔧 API Endpoints
+---
 
-### Health Check
-```
-GET /api/health
-Response: { "status": "healthy" }
-```
+## Usage
 
-### Get Weather
+1. Enter a city name
+2. View real-time weather data
+3. See search history stored in the database
+
+---
+
+## Important Code Snippets
+
+### Reverse Proxy (Nginx)
+
 ```
-GET /api/weather?city=London
-Response: {
-  "city": "London",
-  "country": "GB",
-  "temperature": 15.2,
-  "feels_like": 14.8,
-  "humidity": 65,
-  "pressure": 1013,
-  "description": "overcast clouds",
-  "icon": "04d",
-  "wind_speed": 3.5
+location /api/ {
+    proxy_pass http://backend:3000;
 }
 ```
 
-### Get Search History
+### Healthcheck
+
 ```
-GET /api/history
-Response: [
-  {
-    "city": "London",
-    "last_searched": "2026-05-02T10:30:00.000Z"
-  },
-  ...
-]
+/api/health
 ```
 
-## 🔍 Monitoring and Debugging
+### Backend API Call
 
-### View Logs
-
-View logs from all services:
-```bash
-docker compose logs -f
+```
+/api/weather?city=NAME
 ```
 
-View logs from specific service:
-```bash
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f db
-```
+---
 
-### Check Service Health
+## Challenges & Learnings
 
-```bash
-docker compose ps
-```
+One key challenge was ensuring proper service startup order. Initially, the backend attempted to connect to the database before it was ready.
 
-Output shows health status of each service:
-```
-CONTAINER        STATUS
-weather_db       healthy
-weather_backend  healthy
-weather_frontend healthy
-```
+This was solved using Docker health checks and dependency conditions.
 
-### Connect to Database
+Another challenge was correctly configuring container-to-container communication. Using a custom network and service names solved this issue.
 
-```bash
-docker compose exec db psql -U postgres -d weather_db
-```
+---
 
-Common PostgreSQL commands:
-```sql
--- List tables
-\dt
+## Reflection
 
--- View search history
-SELECT * FROM search_history;
+If this project were to be extended:
 
--- View search statistics
-SELECT city, COUNT(*) as searches FROM search_history GROUP BY city ORDER BY searches DESC;
+* Caching could be added to reduce API calls
+* Authentication could be implemented
+* Frontend could be upgraded to a modern framework
 
--- Exit
-\q
-```
+---
 
-### View Backend Logs (Structured JSON)
+## Conclusion
 
-```bash
-docker compose logs backend | grep "INFO"
-```
-
-Example log entries:
-```json
-{"timestamp":"2026-05-02T10:30:45.123Z","level":"INFO","message":"Server started","port":3000,"environment":"production"}
-{"timestamp":"2026-05-02T10:31:00.456Z","level":"INFO","message":"Fetching weather data","city":"London"}
-{"timestamp":"2026-05-02T10:31:01.789Z","level":"INFO","message":"Search history recorded","city":"London"}
-```
-
-## 🛑 Stop and Remove Services
-
-### Stop Services (Keep Data)
-```bash
-docker compose down
-```
-
-### Remove Everything (Including Data)
-```bash
-docker compose down -v
-```
-
-## 🔐 Security Considerations
-
-✅ **Implemented:**
-- Non-root user in backend container (nodejs:1001)
-- No hardcoded secrets (environment variables)
-- Health checks prevent unhealthy services from serving traffic
-- PostgreSQL password via environment variable
-- Service isolation via custom Docker network
-- Nginx reverse proxy protecting backend
-
-⚠️ **For Production:**
-- Use strong, random password for DB_PASSWORD
-- Store `.env` file securely (use secrets manager)
-- Enable HTTPS/TLS for frontend and backend
-- Add authentication/authorization layer
-- Use private container registry
-- Implement rate limiting
-- Add WAF (Web Application Firewall)
-- Regularly update base images
-
-## 🐛 Troubleshooting
-
-### Backend container keeps restarting
-**Problem**: Backend can't connect to database
-```bash
-docker compose logs backend
-```
-**Solution**: Wait 40 seconds for database health check to pass, or check POSTGRES_PASSWORD in `.env`
-
-### API requests fail with 502
-**Problem**: Nginx can't reach backend
-```bash
-# Check backend is running and healthy
-docker compose ps
-
-# Check network connectivity
-docker compose exec frontend ping backend
-```
-**Solution**: Ensure backend service is healthy before making requests
-
-### "Invalid API key" error
-**Problem**: OpenWeatherMap API key is invalid or missing
-```bash
-# Check environment variable
-docker compose exec backend env | grep OPENWEATHER
-```
-**Solution**: Verify API key in `.env` file is correct
-
-### Database connection refused
-**Problem**: PostgreSQL service not ready
-```bash
-docker compose logs db
-```
-**Solution**: Check logs, wait for service_healthy status
-
-### Frontend can't access backend
-**Problem**: CORS or networking issue
-**Solution**: Verify nginx.conf proxy_pass points to correct backend URL
-
-## 📊 Performance Tips
-
-1. **Use Alpine images**: Already implemented (postgres:15-alpine, node:18-alpine, nginx:alpine)
-2. **Multi-stage builds**: Backend uses multi-stage for smaller image size
-3. **Named volume**: PostgreSQL data persists efficiently
-4. **Health checks**: Prevent requests to failing services
-5. **Connection pooling**: Backend uses pg connection pool (default 10 connections)
-
-## 🔄 Deployment Considerations
-
-This setup is suitable for:
-- ✅ Development environments
-- ✅ Testing and staging
-- ✅ Docker learning
-- ⚠️ Small production deployments (with security hardening)
-
-For production, consider:
-- Kubernetes instead of Docker Compose
-- Managed database services (AWS RDS, Azure Database)
-- CDN for frontend
-- Load balancing
-- Monitoring and alerting (Prometheus, Grafana)
-- Centralized logging (ELK, Splunk)
-
-## 📖 Useful Resources
-
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
-- [Express.js Guide](https://expressjs.com/)
-- [PostgreSQL Docker Image](https://hub.docker.com/_/postgres)
-- [Nginx Documentation](https://nginx.org/en/docs/)
-
-## 📝 License
-
-This project is provided as an educational example.
-
-## ✨ Features Demonstrated
-
-This application showcases Docker Compose best practices:
-- ✅ Multi-stage builds
-- ✅ Custom networks
-- ✅ Health checks
-- ✅ Service dependencies
-- ✅ Named volumes
-- ✅ Environment configuration
-- ✅ Restart policies
-- ✅ Structured logging
-- ✅ Security best practices
-- ✅ Production-like architecture
+This project demonstrates how to build and orchestrate a multi-service application using Docker Compose. It highlights key concepts such as service communication, persistence, health monitoring, and system resilience.
