@@ -1,30 +1,15 @@
 version: '3.9'
 
-# Custom bridge network for all service-to-service communication
-# Services can reach each other by name (e.g., 'http://backend:3000' from frontend)
-networks:
-  weather_network:
-    driver: bridge
-
-# Named volume for persistent PostgreSQL data storage
-# Data survives container restarts and down/up cycles
-volumes:
-  postgres_data:
-    driver: local
-
 services:
-  # PostgreSQL Database Service
-  # - Stores search history
-  # - Health checks ensure readiness before dependent services start
   db:
     image: postgres:15-alpine
     container_name: weather_db
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-weather_db}
-    # Note: Port 5432 deliberately NOT exposed to host
-    # Database is accessed internally by backend via custom network
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -32,69 +17,40 @@ services:
       - weather_network
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      description: "PostgreSQL database service"
 
-  # Backend API Service
-  # - Node.js/Express REST API
-  # - Integrates with OpenWeatherMap external API
-  # - Connects to PostgreSQL for search history
-  # - Health check ensures database connectivity before serving requests
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      # Target production stage for optimized image (excludes devDependencies)
-      target: production
     container_name: weather_backend
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${BACKEND_PORT:-3000}
-      DB_HOST: db          # Service name in custom network
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${BACKEND_PORT}
+      DB_HOST: db
       DB_PORT: 5432
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-weather_db}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
       OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     networks:
       - weather_network
     depends_on:
-      # Wait for database health check to pass before starting backend
-      # Ensures backend can connect to database on first attempt
       db:
         condition: service_healthy
     restart: always
     healthcheck:
-      # Tests /api/health endpoint which verifies database connectivity
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
-      start_period: 40s    # Allow time for database connection retries
+      start_period: 40s
       retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      description: "Node.js/Express backend API service"
 
-  # Frontend Web Service
-  # - Nginx reverse proxy serving static HTML/CSS/JavaScript
-  # - Proxies /api/* requests to backend service
-  # - Depends on backend being healthy to serve traffic
   frontend:
     build:
       context: ./frontend
@@ -105,22 +61,20 @@ services:
     networks:
       - weather_network
     depends_on:
-      # Wait for backend health check to pass before starting frontend
-      # Ensures API is ready when frontend serves requests
       backend:
         condition: service_healthy
     restart: always
     healthcheck:
-      # Tests root endpoint to verify frontend is serving
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
       timeout: 10s
       start_period: 10s
       retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      description: "Nginx reverse proxy and static file server"
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  weather_network:
+    driver: bridge
