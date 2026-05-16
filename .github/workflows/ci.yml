@@ -23,16 +23,16 @@ jobs:
           echo "DB_PASSWORD=testpassword123" >> .env
           echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" >> .env
       - name: Services bauen und starten
-        run: docker compose up --build -d
+        run: docker compose -f docker-compose.yml up --build -d
       - name: Warten und testen
         run: |
           sleep 45
           curl -f http://localhost:3000/api/health
           curl -f http://localhost:8080
       - if: failure()
-        run: docker compose logs
+        run: docker compose -f docker-compose.yml logs
       - if: always()
-        run: docker compose down -v
+        run: docker compose -f docker-compose.yml down -v
 
   publish-images:
     name: Images veroeffentlichen
