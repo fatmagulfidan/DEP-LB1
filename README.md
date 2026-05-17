@@ -991,3 +991,4 @@ If this project were to be extended:
 ## Conclusion
 
 This project demonstrates how to build and orchestrate a multi-service application using Docker Compose. It highlights key concepts such as service communication, persistence, health monitoring, and system resilience.
+ 
