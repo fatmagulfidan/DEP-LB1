@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Atmosfer — Mersin Hava Durumu</title>
+
+  <!-- Editorial display + clean body -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Space+Grotesk:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Lato:wght@300;400;700&family=JetBrains+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --font-display: 'Instrument Serif', serif;
+      --font-body: 'Manrope', system-ui, sans-serif;
+    }
+    html, body, #root { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: var(--font-body);
+      background: #efece6;
+      color: #1a1a1a;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+    @keyframes heroFade {
+      from { opacity: 0; transform: scale(1.04); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes softRise {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Design canvas tweaks for our context */
+    body { background: #efece6; }
+  </style>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Data + parts -->
+  <script src="src/data.js"></script>
+  <script type="text/babel" src="src/icons.jsx"></script>
+  <script type="text/babel" src="src/parts.jsx"></script>
+  <script type="text/babel" src="src/desktop.jsx"></script>
+  <script type="text/babel" src="src/mobile.jsx"></script>
+
+  <!-- Starter components -->
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "language": "tr",
+      "unit": "C",
+      "fontPair": "editorial",
+      "palette": ["#1B5E7C","#E8B65A","#F4EDE0"],
+      "bgStyle": "photo",
+      "defaultCity": "mersin",
+      "mood": "vivid"
+    }/*EDITMODE-END*/;
+
+    const FONT_PAIRS = {
+      editorial: { display: "'Instrument Serif', serif",    body: "'Manrope', system-ui, sans-serif" },
+      classic:   { display: "'Cormorant Garamond', serif",  body: "'Lato', system-ui, sans-serif" },
+      modern:    { display: "'Space Grotesk', sans-serif",  body: "'Plus Jakarta Sans', system-ui, sans-serif" },
+      magazine:  { display: "'Playfair Display', serif",    body: "'Plus Jakarta Sans', system-ui, sans-serif" },
+      mono:      { display: "'JetBrains Mono', monospace",  body: "'DM Sans', system-ui, sans-serif" },
+    };
+
+    const PALETTES = [
+      ['#1B5E7C', '#E8B65A', '#F4EDE0'], // akdeniz
+      ['#E8A02C', '#1F5F3F', '#FFF8E7'], // limon
+      ['#0B1A2F', '#C9A875', '#E8E2D5'], // gece
+      ['#5B3A29', '#D4A574', '#F5E6D3'], // toprak
+      ['#2B4159', '#F26D5B', '#F0E9DC'], // batı
+      ['#1A1A1A', '#6F6F6F', '#F2F2F2'], // sade
+    ];
+    const PALETTE_NAMES = {
+      tr: ['Akdeniz', 'Limon', 'Gece', 'Toprak', 'Batı', 'Sade'],
+      en: ['Mediterranean', 'Citrus', 'Night', 'Earth', 'West', 'Mono'],
+    };
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const cities = window.CITIES;
+      const [activeId, setActiveId] = React.useState(t.defaultCity || 'mersin');
+
+      // When defaultCity tweak changes, jump to it
+      React.useEffect(() => {
+        if (t.defaultCity && t.defaultCity !== activeId) {
+          setActiveId(t.defaultCity);
+        }
+      }, [t.defaultCity]);
+
+      // Apply font CSS vars
+      React.useEffect(() => {
+        const pair = FONT_PAIRS[t.fontPair] || FONT_PAIRS.editorial;
+        document.documentElement.style.setProperty('--font-display', pair.display);
+        document.documentElement.style.setProperty('--font-body', pair.body);
+      }, [t.fontPair]);
+
+      const lang = t.language || 'tr';
+      const i18n = window.I18N[lang];
+
+      return (
+        <>
+          <DesignCanvas>
+            <DCSection
+              id="atmosfer"
+              title={lang === 'tr' ? 'Atmosfer · Hava Durumu' : 'Atmosfer · Weather'}
+              subtitle={lang === 'tr'
+                ? 'Akdeniz fotoğraf objektifi — Mersin merkezli, çoklu şehir, arama, 7 günlük tahmin, gün ışığı arkı.'
+                : 'A Mediterranean photographic lens — Mersin-centric, multi-city, search, 7-day forecast, daylight arc.'}>
+
+              <DCArtboard id="desktop"
+                label={lang === 'tr' ? 'Masaüstü · 1280 × 800' : 'Desktop · 1280 × 800'}
+                width={1280} height={800}>
+                <DesktopApp
+                  t={t} lang={lang}
+                  cities={cities}
+                  activeId={activeId} setActiveId={setActiveId}/>
+              </DCArtboard>
+
+              <DCArtboard id="mobile-home"
+                label={lang === 'tr' ? 'Mobil · Ana ekran' : 'Mobile · Home'}
+                width={393} height={852}>
+                <IOSDevice title="" dark>
+                  <MobileApp
+                    t={t} lang={lang}
+                    cities={cities}
+                    activeId={activeId} setActiveId={setActiveId}/>
+                </IOSDevice>
+              </DCArtboard>
+
+              <DCArtboard id="mobile-rain"
+                label={lang === 'tr' ? 'Mobil · Yağışlı Trabzon' : 'Mobile · Rainy Trabzon'}
+                width={393} height={852}>
+                <IOSDevice title="" dark>
+                  <MobileApp
+                    t={t} lang={lang}
+                    cities={cities}
+                    activeId={'trabzon'} setActiveId={() => {}}/>
+                </IOSDevice>
+              </DCArtboard>
+
+              <DCArtboard id="mobile-snow"
+                label={lang === 'tr' ? 'Mobil · Karlı Erzurum' : 'Mobile · Snowy Erzurum'}
+                width={393} height={852}>
+                <IOSDevice title="" dark>
+                  <MobileApp
+                    t={t} lang={lang}
+                    cities={cities}
+                    activeId={'erzurum'} setActiveId={() => {}}/>
+                </IOSDevice>
+              </DCArtboard>
+            </DCSection>
+          </DesignCanvas>
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection label={lang === 'tr' ? 'Dil' : 'Language'} />
+            <TweakRadio label={lang === 'tr' ? 'Dil' : 'Language'}
+              value={lang} options={['tr', 'en']}
+              optionLabels={{ tr: 'TR', en: 'EN' }}
+              onChange={(v) => setTweak('language', v)}/>
+            <TweakRadio label={lang === 'tr' ? 'Birim' : 'Unit'}
+              value={t.unit} options={['C', 'F']}
+              optionLabels={{ C: '°C', F: '°F' }}
+              onChange={(v) => setTweak('unit', v)}/>
+
+            <TweakSection label={lang === 'tr' ? 'Şehir' : 'City'} />
+            <TweakSelect label={lang === 'tr' ? 'Varsayılan şehir' : 'Default city'}
+              value={t.defaultCity}
+              options={cities.map(c => c.id)}
+              optionLabels={Object.fromEntries(cities.map(c => [c.id, c.name[lang]]))}
+              onChange={(v) => setTweak('defaultCity', v)}/>
+
+            <TweakSection label={lang === 'tr' ? 'Tipografi' : 'Typography'} />
+            <TweakSelect label={lang === 'tr' ? 'Font ailesi' : 'Font family'}
+              value={t.fontPair}
+              options={['editorial','classic','modern','magazine','mono']}
+              optionLabels={{
+                editorial: lang==='tr' ? 'Editoryal (Instrument · Manrope)' : 'Editorial (Instrument · Manrope)',
+                classic:   lang==='tr' ? 'Klasik (Cormorant · Lato)' : 'Classic (Cormorant · Lato)',
+                modern:    lang==='tr' ? 'Modern (Space Grotesk · Jakarta)' : 'Modern (Space Grotesk · Jakarta)',
+                magazine:  lang==='tr' ? 'Magazin (Playfair · Jakarta)' : 'Magazine (Playfair · Jakarta)',
+                mono:      lang==='tr' ? 'Mono (JetBrains · DM Sans)' : 'Mono (JetBrains · DM Sans)',
+              }}
+              onChange={(v) => setTweak('fontPair', v)}/>
+
+            <TweakSection label={lang === 'tr' ? 'Renk paleti' : 'Color palette'} />
+            <TweakColor
+              label={lang === 'tr' ? 'Vurgu paleti' : 'Accent palette'}
+              value={t.palette}
+              options={PALETTES}
+              onChange={(v) => setTweak('palette', v)}/>
+            <div style={{
+              fontSize: 11, opacity: 0.55, padding: '4px 12px 8px 12px',
+              fontFamily: 'var(--font-body)',
+            }}>
+              {PALETTE_NAMES[lang][PALETTES.findIndex(p => p.join() === (t.palette||[]).join())] || ''}
+            </div>
+
+            <TweakSection label={lang === 'tr' ? 'Arka plan stili' : 'Background style'} />
+            <TweakRadio label={lang === 'tr' ? 'Stil' : 'Style'}
+              value={t.bgStyle}
+              options={['photo', 'gradient', 'mesh', 'minimal']}
+              optionLabels={{
+                photo:    lang==='tr' ? 'Foto' : 'Photo',
+                gradient: lang==='tr' ? 'Geçiş' : 'Gradient',
+                mesh:     lang==='tr' ? 'Sis' : 'Mesh',
+                minimal:  lang==='tr' ? 'Sade' : 'Minimal',
+              }}
+              onChange={(v) => setTweak('bgStyle', v)}/>
+            <TweakRadio label={lang === 'tr' ? 'Doku' : 'Mood'}
+              value={t.mood} options={['vivid', 'soft']}
+              optionLabels={{
+                vivid: lang==='tr' ? 'Canlı' : 'Vivid',
+                soft:  lang==='tr' ? 'Yumuşak' : 'Soft',
+              }}
+              onChange={(v) => setTweak('mood', v)}/>
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
